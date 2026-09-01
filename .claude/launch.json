@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "grader-demo",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["app.py"],
+      "port": 5055,
+      "env": { "DEMO_MODE": "1", "PORT": "5055" }
+    }
+  ]
+}

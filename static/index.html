@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canvas Discussion Grader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d1117; --bg2:#11161d; --panel:#161b22; --panel2:#1c2129;
+  --line:#242c37; --line2:#30363d;
+  --text:#e6edf3; --text2:#9aa7b4; --text3:#6b7785;
+  --blue:#4a8fe7; --green:#5ce08f; --yellow:#e6c07b; --red:#e06c75;
+  --purple:#c792ea; --teal:#7ee0b8;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --sidebar:340px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;overflow:hidden}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:#3d4653}
+
+/* ---------- shell ---------- */
+.topbar{height:56px;display:flex;align-items:center;gap:14px;padding:0 20px;
+  background:var(--bg2);border-bottom:1px solid var(--line);position:relative;z-index:5}
+.logo{width:26px;height:26px;flex:none;background:linear-gradient(135deg,var(--blue),var(--purple));
+  border-radius:6px;transform:rotate(45deg)}
+.brand h1{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+.brand p{font-family:var(--mono);font-size:10.5px;color:var(--text3);letter-spacing:.05em;margin-top:2px}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+.status{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--text2)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex:none}
+.status-dot.connected{background:var(--green);box-shadow:0 0 8px var(--green)}
+.status-dot.error{background:var(--red);box-shadow:0 0 8px var(--red)}
+.status-dot.connecting{background:var(--yellow);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+
+.layout{display:flex;height:calc(100vh - 56px)}
+.sidebar{width:var(--sidebar);flex:none;background:var(--bg2);border-right:1px solid var(--line);
+  overflow-y:auto;display:flex;flex-direction:column}
+.sidebar .sec{flex:none}
+.sidebar-spacer{flex:1 0 auto;min-height:0}
+.main{flex:1;overflow-y:auto;padding:26px 30px 60px}
+
+/* ---------- sidebar sections ---------- */
+.sec{border-bottom:1px solid var(--line)}
+.sec-head{display:flex;align-items:center;gap:8px;padding:13px 18px;cursor:pointer;user-select:none}
+.sec-head:hover{background:#141a22}
+.sec-head h2{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--text2);flex:1}
+.sec-caret{font-size:9px;color:var(--text3);transition:transform .15s}
+.sec.collapsed .sec-caret{transform:rotate(-90deg)}
+.sec.collapsed .sec-body{display:none}
+.sec-body{padding:0 18px 18px}
+.sec-badge{font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:9px;
+  background:var(--panel2);color:var(--text2);border:1px solid var(--line2)}
+.sec-badge.on{background:rgba(74,143,231,.15);color:var(--blue);border-color:rgba(74,143,231,.4)}
+
+label.fld{display:block;font-family:var(--mono);font-size:10.5px;color:var(--text2);
+  margin:12px 0 5px;letter-spacing:.05em}
+input[type=text],input[type=password],input[type=number]{
+  width:100%;background:var(--panel);border:1px solid var(--line2);border-radius:5px;
+  color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none}
+input:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(74,143,231,.15)}
+input::placeholder{color:var(--text3)}
+
+.btn{background:var(--panel2);border:1px solid var(--line2);border-radius:5px;color:var(--text);
+  font-family:var(--mono);font-size:11px;padding:8px 14px;cursor:pointer;transition:.12s}
+.btn:hover:not(:disabled){background:#252c36;border-color:#3d4653}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#06121f;font-weight:600}
+.btn.primary:hover:not(:disabled){background:#5c9dee}
+.btn.tiny{font-size:10px;padding:5px 9px}
+.row{display:flex;gap:8px;align-items:center}
+
+.feedback{font-family:var(--mono);font-size:10.5px;margin-top:9px;min-height:14px;line-height:1.5}
+.feedback.success{color:var(--green)} .feedback.error{color:var(--red)} .feedback.neutral{color:var(--text2)}
+
+/* ---------- saved courses ---------- */
+.chip{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line2);
+  border-radius:5px;padding:7px 10px;margin-bottom:6px;cursor:pointer;font-family:var(--mono);font-size:11px}
+.chip:hover{border-color:var(--blue);background:var(--panel2)}
+.chip span:first-child{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-x{color:var(--text3);padding:0 3px}
+.chip-x:hover{color:var(--red)}
+.muted{font-family:var(--mono);font-size:10.5px;color:var(--text3);line-height:1.6}
+
+/* ---------- toggles ---------- */
+.toggle-row{display:flex;align-items:center;gap:10px;padding:8px 0}
+.toggle-row .tr-text{flex:1}
+.toggle-row .tr-title{font-family:var(--mono);font-size:11.5px;color:var(--text)}
+.toggle-row .tr-sub{font-family:var(--mono);font-size:9.5px;color:var(--text3);margin-top:2px;line-height:1.5}
+.switch{position:relative;width:34px;height:19px;flex:none}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch span{position:absolute;inset:0;background:var(--line2);border-radius:19px;
+  cursor:pointer;transition:.15s}
+.switch span::before{content:'';position:absolute;width:13px;height:13px;left:3px;top:3px;
+  background:var(--text2);border-radius:50%;transition:.15s}
+.switch input:checked + span{background:rgba(74,143,231,.4)}
+.switch input:checked + span::before{transform:translateX(15px);background:var(--blue)}
+.switch input:focus-visible + span{box-shadow:0 0 0 2px rgba(74,143,231,.4)}
+
+/* ---------- grading scheme ---------- */
+.tier-head{display:grid;grid-template-columns:1fr 62px 26px;gap:7px;font-family:var(--mono);
+  font-size:9px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;margin-bottom:7px}
+.tier-head span:nth-child(2){text-align:center}
+.tier{display:grid;grid-template-columns:1fr 62px 26px;gap:7px;align-items:center;margin-bottom:6px}
+.tier-cond{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.tier-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.tier-cond .lbl{font-family:var(--mono);font-size:11px;color:var(--text2)}
+.tier-cond input{width:52px;text-align:right}
+.tier-x{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:3px}
+.tier-x:hover{color:var(--red)}
+.tier-x:disabled{opacity:.2;cursor:not-allowed}
+.scheme-preview{background:var(--panel);border:1px solid var(--line);border-radius:5px;
+  padding:9px 11px;margin-top:10px;font-family:var(--mono);font-size:10.5px}
+.scheme-preview div{display:flex;justify-content:space-between;padding:2px 0;color:var(--text2)}
+.scheme-warn{color:var(--yellow);font-family:var(--mono);font-size:10px;margin-top:7px;line-height:1.5}
+
+/* ---------- weights ---------- */
+.wt-formula{background:var(--panel);border:1px solid var(--line);border-radius:5px;
+  padding:9px 11px;font-family:var(--mono);font-size:11px;color:var(--blue);
+  text-align:center;margin-bottom:12px;letter-spacing:.02em}
+.wt-row{margin-bottom:12px}
+.wt-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.wt-name{font-family:var(--mono);font-size:10.5px;color:var(--text2);flex:1;letter-spacing:.04em}
+.wt-top input{width:60px;text-align:right;padding:4px 7px;font-size:11px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;
+  background:var(--line2);border-radius:3px;outline:none;padding:0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+  border-radius:50%;background:var(--blue);cursor:pointer;border:2px solid var(--bg2)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;
+  background:var(--blue);cursor:pointer;border:2px solid var(--bg2)}
+input[type=range].reply::-webkit-slider-thumb{background:var(--teal)}
+input[type=range].reply::-moz-range-thumb{background:var(--teal)}
+.wt-presets{display:flex;gap:5px}
+.wt-presets .btn{flex:1;padding:5px 4px;font-size:9.5px}
+.wt-note{font-family:var(--mono);font-size:9.5px;color:var(--text3);line-height:1.6;margin-top:9px}
+
+/* ---------- include lists ---------- */
+.list-toolbar{display:flex;gap:5px;margin:8px 0}
+.list-toolbar .btn{flex:1;padding:5px 4px;font-size:9.5px}
+.list-box{max-height:210px;overflow-y:auto;border:1px solid var(--line2);border-radius:5px;
+  background:var(--panel)}
+.item{display:flex;align-items:center;gap:9px;padding:7px 10px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;border-bottom:1px solid #1b212a;line-height:1.4}
+.item:last-child{border-bottom:none}
+.item:hover{background:var(--panel2)}
+.item.preview{background:rgba(74,143,231,.09)}
+.box{width:13px;height:13px;flex:none;border:1px solid var(--line2);border-radius:3px;
+  position:relative;background:var(--bg)}
+.item.on .box{background:var(--blue);border-color:var(--blue)}
+.item.on .box::after{content:'';position:absolute;left:4px;top:1px;width:3.5px;height:7px;
+  border:solid #06121f;border-width:0 2px 2px 0;transform:rotate(42deg)}
+.item.locked{opacity:.45;cursor:not-allowed}
+.item.locked:hover{background:none}
+.item-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-text mark{background:rgba(230,192,123,.25);color:var(--yellow);border-radius:2px}
+.tag{font-family:var(--mono);font-size:8.5px;padding:1px 5px;border-radius:3px;flex:none;
+  letter-spacing:.06em;text-transform:uppercase}
+.tag.test{background:rgba(224,108,117,.16);color:var(--red);border:1px solid rgba(224,108,117,.35)}
+.tag.staff{background:rgba(199,146,234,.16);color:var(--purple);border:1px solid rgba(199,146,234,.35)}
+.empty{padding:16px;text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--text3)}
+.list-hint{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:7px;line-height:1.5}
+.list-hint b{color:var(--blue);font-weight:500}
+
+/* ---------- run ---------- */
+.run-wrap{position:sticky;bottom:0;flex:none;padding:14px 18px;background:var(--bg2);
+  border-top:1px solid var(--line);box-shadow:0 -10px 22px -8px rgba(0,0,0,.75)}
+.run-wrap .btn{width:100%;padding:11px;font-size:12px;font-weight:600;letter-spacing:.08em}
+
+/* ---------- main views ---------- */
+.hidden{display:none !important}
+.center{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:12px}
+.center .mark{width:46px;height:46px;border:2px solid var(--line2);border-radius:10px;
+  transform:rotate(45deg);margin-bottom:14px}
+.center h2{font-family:var(--mono);font-size:16px;font-weight:500;letter-spacing:.05em}
+.center p{color:var(--text3);font-family:var(--mono);font-size:11.5px;line-height:1.9;max-width:440px}
+
+.progress-box{width:min(520px,100%)}
+.progress-track{height:3px;background:var(--panel2);border-radius:3px;overflow:hidden;margin:16px 0 12px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--teal));width:5%;
+  transition:width .35s ease}
+.progress-label{font-family:var(--mono);font-size:12px;color:var(--text)}
+.progress-step{font-family:var(--mono);font-size:10.5px;color:var(--text3);margin-top:7px;
+  min-height:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.panel-title{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--text3);margin:26px 0 11px;display:flex;align-items:center;gap:10px}
+.panel-title::after{content:'';flex:1;height:1px;background:var(--line)}
+.panel-title:first-child{margin-top:0}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:11px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:14px 15px}
+.card-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--text3);margin-bottom:8px}
+.card-value{font-family:var(--mono);font-size:25px;font-weight:300;line-height:1.1}
+.card-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5}
+.card.split .card-value{font-size:19px}
+.dist-line{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;padding:2.5px 0}
+.dist-swatch{width:8px;height:8px;border-radius:2px;flex:none}
+.dist-line .g{color:var(--text2);flex:1}
+.dist-line .n{font-weight:500}
+
+.chart-wrap{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:14px}
+.chart-wrap{transition:opacity .15s}
+.chart-wrap.stale{opacity:.4}
+.chart-wrap img{width:100%;display:block;border-radius:4px}
+.chip-formula{display:inline-flex;align-items:center;gap:8px;background:var(--panel);
+  border:1px solid var(--line2);border-radius:14px;padding:4px 12px;font-family:var(--mono);
+  font-size:10.5px;color:var(--blue);margin-left:auto}
+.chip-formula.busy{color:var(--yellow);border-color:rgba(230,192,123,.4)}
+.panel-title .chip-formula{text-transform:none;letter-spacing:0}
+.chart-note{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:10px;line-height:1.7}
+
+.file-row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:10px 13px;margin-bottom:7px}
+.file-icon{font-family:var(--mono);font-size:9px;font-weight:600;padding:3px 7px;border-radius:3px;
+  letter-spacing:.06em;flex:none}
+.file-icon.xlsx{background:rgba(92,224,143,.15);color:var(--green)}
+.file-icon.csv{background:rgba(74,143,231,.15);color:var(--blue)}
+.file-icon.png{background:rgba(199,146,234,.15);color:var(--purple)}
+.file-icon.txt{background:rgba(230,192,123,.15);color:var(--yellow)}
+.file-name{font-family:var(--mono);font-size:11px;flex:none}
+.file-desc{font-family:var(--mono);font-size:10px;color:var(--text3);flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+
+.table-tools{display:flex;gap:8px;margin-bottom:10px}
+.table-tools input{flex:1;max-width:280px}
+.tbl-wrap{border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
+.tbl-scroll{max-height:460px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
+thead th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:9px 13px;
+  font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--text3);font-weight:500;
+  border-bottom:1px solid var(--line2);cursor:pointer;user-select:none;white-space:nowrap}
+thead th:hover{color:var(--text2)}
+thead th .arrow{opacity:.45;font-size:8px;margin-left:3px}
+tbody td{padding:8px 13px;border-bottom:1px solid #1b212a;color:var(--text2)}
+tbody tr:hover td{background:var(--panel2)}
+tbody td:first-child{color:var(--text)}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500}
+
+.banner{display:flex;gap:10px;align-items:flex-start;background:rgba(92,224,143,.07);
+  border:1px solid rgba(92,224,143,.28);border-radius:6px;padding:11px 13px;margin-bottom:14px;
+  font-family:var(--mono);font-size:10.5px;color:var(--text2);line-height:1.7}
+.banner.warn{background:rgba(230,192,123,.07);border-color:rgba(230,192,123,.28)}
+.banner b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"></div>
+  <div class="brand">
+    <h1>Canvas Discussion Grader</h1>
+    <p>Grade participation by normal distribution</p>
+  </div>
+  <div class="topbar-right">
+    <div class="status"><span class="status-dot" id="statusDot"></span><span id="statusText">Not connected</span></div>
+  </div>
+</div>
+
+<div class="layout">
+<aside class="sidebar">
+
+  <!-- Saved courses -->
+  <section class="sec" id="secSaved">
+    <div class="sec-head" onclick="toggleSec('secSaved')">
+      <h2>Saved Courses</h2><span class="sec-caret">▼</span>
+    </div>
+    <div class="sec-body"><div id="savedCourses"></div></div>
+  </section>
+
+  <!-- Connection -->
+  <section class="sec" id="secConn">
+    <div class="sec-head" onclick="toggleSec('secConn')">
+      <h2>Canvas Connection</h2><span class="sec-caret">▼</span>
+    </div>
+    <div class="sec-body">
+      <label class="fld" for="canvasUrl">Canvas URL</label>
+      <input type="text" id="canvasUrl" placeholder="https://pitt.instructure.com" autocomplete="off">
+      <label class="fld" for="accessToken">API Access Token</label>
+      <input type="password" id="accessToken" placeholder="••••••••••••••••••••" autocomplete="off">
+      <label class="fld" for="courseId">Course ID</label>
+      <div class="row">
+        <input type="text" id="courseId" placeholder="123456" autocomplete="off">
+        <button class="btn primary" id="connectBtn" onclick="connectCanvas()">Connect</button>
+      </div>
+      <div class="feedback" id="connFeedback"></div>
+
+      <div id="savePanel" class="hidden">
+        <label class="fld" for="courseAlias">Save this course?</label>
+        <input type="text" id="courseAlias" placeholder="e.g. Behavioral Econ Spring 2026">
+        <div class="toggle-row">
+          <div class="tr-text">
+            <div class="tr-title">Remember API token</div>
+            <div class="tr-sub">Stored unencrypted in this browser. Leave off on shared machines.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="rememberToken"><span></span></label>
+        </div>
+        <button class="btn" style="width:100%" onclick="saveCourse()">Save Course</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filters -->
+  <section class="sec" id="secFilters">
+    <div class="sec-head" onclick="toggleSec('secFilters')">
+      <h2>Participant Filters</h2><span class="sec-caret">▼</span>
+    </div>
+    <div class="sec-body">
+      <div class="toggle-row">
+        <div class="tr-text">
+          <div class="tr-title">Drop Canvas Test Student</div>
+          <div class="tr-sub">The Student View account. Its posts would otherwise skew the mean.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="dropTestStudent" checked onchange="onTestStudentToggle()"><span></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="tr-text"><div class="tr-title">Exclude instructor posts</div></div>
+        <label class="switch"><input type="checkbox" id="excludeInstructor" checked><span></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="tr-text"><div class="tr-title">Exclude TA posts</div></div>
+        <label class="switch"><input type="checkbox" id="excludeTA" checked><span></span></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- Participation weights -->
+  <section class="sec" id="secWeights">
+    <div class="sec-head" onclick="toggleSec('secWeights')">
+      <h2>Participation Score</h2><span class="sec-badge" id="weightBadge">1 / 1</span><span class="sec-caret">▼</span>
+    </div>
+    <div class="sec-body">
+      <div class="wt-formula" id="weightFormula">Y = 1·posts + 1·replies</div>
+
+      <div class="wt-row">
+        <div class="wt-top">
+          <span class="wt-name" style="color:var(--blue)">β₁ &nbsp;posts</span>
+          <input type="number" id="betaPostsNum" min="0" max="5" step="0.05" value="1"
+                 aria-label="weight on posts" oninput="setWeight('posts',this.value)">
+        </div>
+        <input type="range" id="betaPosts" min="0" max="3" step="0.05" value="1"
+               aria-label="weight on posts slider" oninput="setWeight('posts',this.value)">
+      </div>
+
+      <div class="wt-row">
+        <div class="wt-top">
+          <span class="wt-name" style="color:var(--teal)">β₂ &nbsp;replies</span>
+          <input type="number" id="betaRepliesNum" min="0" max="5" step="0.05" value="1"
+                 aria-label="weight on replies" oninput="setWeight('replies',this.value)">
+        </div>
+        <input type="range" class="reply" id="betaReplies" min="0" max="3" step="0.05" value="1"
+               aria-label="weight on replies slider" oninput="setWeight('replies',this.value)">
+      </div>
+
+      <div class="wt-presets">
+        <button class="btn" onclick="setWeights(1,1)">1 / 1</button>
+        <button class="btn" onclick="setWeights(1,0.5)">1 / ½</button>
+        <button class="btn" onclick="setWeights(2,1)">2 / 1</button>
+        <button class="btn" onclick="setWeights(1,0)">posts only</button>
+      </div>
+      <div class="wt-note">Grades come from the z-score of Y, not raw counts.
+        After a run, changes re-score instantly — no Canvas refetch.</div>
+    </div>
+  </section>
+
+  <!-- Grading scheme -->
+  <section class="sec" id="secScheme">
+    <div class="sec-head" onclick="toggleSec('secScheme')">
+      <h2>Grading Scheme</h2><span class="sec-caret">▼</span>
+    </div>
+    <div class="sec-body">
+      <div class="tier-head"><span>Condition (z-score)</span><span>Grade %</span><span></span></div>
+      <div id="tierRows"></div>
+      <button class="btn" style="width:100%;margin-top:4px" onclick="addTier()">+ Add tier</button>
+      <div class="scheme-preview" id="schemePreview"></div>
+      <div class="scheme-warn hidden" id="schemeWarn"></div>
+    </div>
+  </section>
+
+  <!-- Discussions -->
+  <section class="sec" id="secTopics">
+    <div class="sec-head" onclick="toggleSec('secTopics')">
+      <h2>Include Discussions</h2><span class="sec-badge" id="topicBadge">0</span><span class="sec-caret">▼</span>
+    </div>
+    <div class="sec-body">
+      <input type="text" id="topicSearch" placeholder="Search discussions..." oninput="setFilter('topics',this.value)">
+      <div class="list-toolbar">
+        <button class="btn tiny" onclick="bulk('topics','visible',true)">+ Visible</button>
+        <button class="btn tiny" onclick="bulk('topics','visible',false)">− Visible</button>
+        <button class="btn tiny" onclick="bulk('topics','all',true)">All</button>
+        <button class="btn tiny" onclick="bulk('topics','all',false)">None</button>
+      </div>
+      <div class="list-box" id="topicList"><div class="empty">Connect to load topics</div></div>
+      <div class="list-hint" id="topicHint"></div>
+    </div>
+  </section>
+
+  <!-- Students -->
+  <section class="sec" id="secStudents">
+    <div class="sec-head" onclick="toggleSec('secStudents')">
+      <h2>Include Students</h2><span class="sec-badge" id="studentBadge">0</span><span class="sec-caret">▼</span>
+    </div>
+    <div class="sec-body">
+      <input type="text" id="studentSearch" placeholder="Search students..." oninput="setFilter('students',this.value)">
+      <div class="list-toolbar">
+        <button class="btn tiny" onclick="bulk('students','visible',true)">+ Visible</button>
+        <button class="btn tiny" onclick="bulk('students','visible',false)">− Visible</button>
+        <button class="btn tiny" onclick="bulk('students','all',true)">All</button>
+        <button class="btn tiny" onclick="bulk('students','all',false)">None</button>
+      </div>
+      <div class="list-box" id="studentList"><div class="empty">Connect to load students</div></div>
+      <div class="list-hint" id="studentHint"></div>
+    </div>
+  </section>
+
+  <div class="sidebar-spacer"></div>
+  <div class="run-wrap">
+    <button class="btn primary" id="runBtn" onclick="runAnalysis()" disabled>▶ Run Analysis</button>
+  </div>
+</aside>
+
+<main class="main">
+  <!-- welcome -->
+  <div id="welcomeView">
+    <div class="center">
+      <div class="mark"></div>
+      <h2>Connect a Canvas Course</h2>
+      <p>Enter your Canvas URL, API token, and course ID in the sidebar.
+         Once connected, choose the discussions and students to include, then run the analysis.</p>
+    </div>
+  </div>
+
+  <!-- progress -->
+  <div id="progressView" class="hidden">
+    <div class="center">
+      <div class="progress-box">
+        <div class="progress-label" id="progressLabel">Starting analysis...</div>
+        <div class="progress-track"><div class="progress-fill" id="progressBar"></div></div>
+        <div class="progress-step" id="progressStep"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- results -->
+  <div id="resultsView" class="hidden">
+    <div id="resultBanners"></div>
+    <div class="panel-title">Summary</div>
+    <div class="cards" id="statCards"></div>
+
+    <div class="panel-title">Participation Distribution
+      <span class="chip-formula" id="formulaChip">Y = 1·posts + 1·replies</span></div>
+    <div class="chart-wrap" id="chartWrap1">
+      <img id="chartImg" alt="Histogram of participation with a fitted normal curve, mean, median and ±1σ markers, beside a grade distribution bar chart">
+      <div class="chart-note" id="chartNote1"></div>
+    </div>
+
+    <div class="panel-title">Posts vs Replies</div>
+    <div class="chart-wrap" id="chartWrap2">
+      <img id="compImg" alt="Scatter of posts against replies shaded by grade band, beside a per-student stacked breakdown sorted by participation">
+      <div class="chart-note">
+        Each dot is one student. Because grades come from the z-score of Y, the tier boundaries are
+        the straight lines where <b>Y</b> is constant &mdash; so two students on the same band get the
+        same grade however differently they got there. Re-weighting tilts the bands.
+        On the right, every student's own
+        <span style="color:var(--blue)">■</span> posts and
+        <span style="color:var(--teal)">■</span> replies, with the cutoffs marked.
+      </div>
+    </div>
+
+    <div class="panel-title">Export Files</div>
+    <div id="fileList"></div>
+    <button class="btn" style="margin-top:5px" onclick="downloadAll()">↓ Download All (.zip)</button>
+
+    <div class="panel-title">Student Results</div>
+    <div class="table-tools">
+      <input type="text" id="tableSearch" placeholder="Filter students..." oninput="renderTable()">
+    </div>
+    <div class="tbl-wrap"><div class="tbl-scroll">
+      <table>
+        <thead><tr id="tblHead"></tr></thead>
+        <tbody id="tblBody"></tbody>
+      </table>
+    </div></div>
+  </div>
+</main>
+</div>
+
+<script>
+'use strict';
+
+// ===========================================================================
+// State
+// ===========================================================================
+const state = {
+  connected:false, creds:null, courseName:'',
+  jobId:null, poll:null, results:null,
+  sort:{key:'Student', dir:1},
+  weights:{posts:1, replies:1},
+  recomputeTimer:null, recomputeSeq:0,
+};
+
+// Lists use INCLUDE semantics throughout: `on` means "count this one".
+const lists = {
+  topics:   {items:[], filter:'', lastIdx:null, listId:'topicList',   hintId:'topicHint',   badgeId:'topicBadge',   noun:'discussions'},
+  students: {items:[], filter:'', lastIdx:null, listId:'studentList', hintId:'studentHint', badgeId:'studentBadge', noun:'students'},
+};
+
+const TIER_COLORS = ['#4a8fe7','#5ce08f','#e6c07b','#e06c75','#c792ea','#56b6c2','#e59f6a'];
+let tiers = [
+  {z:1,  grade:120}, {z:0, grade:100}, {z:-1, grade:80}, {z:null, grade:0},
+];
+
+// Two files share the .png extension, so match on the name first.
+const FILE_META = {
+  xlsx:       {label:'XLSX', desc:'Grades, z-scores, summary stats, embedded charts'},
+  csv:        {label:'CSV',  desc:'Per-student post/reply data for auditability'},
+  txt:        {label:'TXT',  desc:'Weights, mean, median, std dev, grade breakdown, zero-post list'},
+  analysis:   {label:'PNG',  desc:'Participation histogram and grade distribution'},
+  composition:{label:'PNG',  desc:'Posts vs replies scatter and per-student breakdown'},
+};
+
+function fileMeta(name){
+  for (const key of ['analysis','composition'])
+    if (name.includes(key)) return FILE_META[key];
+  const ext = name.split('.').pop().toLowerCase();
+  return FILE_META[ext] || {label:ext.toUpperCase(), desc:''};
+}
+
+const $  = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ===========================================================================
+// Sections
+// ===========================================================================
+function toggleSec(id){ $(id).classList.toggle('collapsed'); }
+
+// ===========================================================================
+// Saved courses  (localStorage)
+// ===========================================================================
+const STORE = 'cdg_courses_v2';
+const getCourses = () => { try { return JSON.parse(localStorage.getItem(STORE) || '[]'); } catch { return []; } };
+const putCourses = c => localStorage.setItem(STORE, JSON.stringify(c));
+
+function renderSaved(){
+  const c = getCourses(), el = $('savedCourses');
+  if (!c.length){ el.innerHTML = '<div class="muted">No saved courses yet</div>'; return; }
+  el.innerHTML = c.map((x,i)=>`
+    <div class="chip" onclick="loadCourse(${i})" title="${esc(x.url)} · course ${esc(x.courseId)}">
+      <span>${esc(x.alias || x.courseId)}</span>
+      ${x.token ? '' : '<span class="tag staff" title="Token not saved">key</span>'}
+      <span class="chip-x" onclick="delCourse(event,${i})">✕</span>
+    </div>`).join('');
+}
+
+function loadCourse(i){
+  const c = getCourses()[i]; if (!c) return;
+  $('canvasUrl').value = c.url || '';
+  $('courseId').value  = c.courseId || '';
+  if (c.token){ $('accessToken').value = c.token; connectCanvas(); }
+  else {
+    $('accessToken').value = '';
+    $('accessToken').focus();
+    feedback('Token not saved for this course — paste it to connect.', 'neutral');
+  }
+}
+
+function delCourse(e,i){ e.stopPropagation(); const c = getCourses(); c.splice(i,1); putCourses(c); renderSaved(); }
+
+function saveCourse(){
+  if (!state.creds) return;
+  const alias = $('courseAlias').value.trim();
+  const remember = $('rememberToken').checked;
+  const c = getCourses();
+  c.push({
+    url: state.creds.url,
+    courseId: state.creds.courseId,
+    alias,
+    token: remember ? state.creds.token : null,
+  });
+  putCourses(c); renderSaved();
+  $('courseAlias').value = '';
+  feedback(remember ? '✓ Course saved (token included)' : '✓ Course saved (token not stored)', 'success');
+}
+
+// ===========================================================================
+// Connect
+// ===========================================================================
+function feedback(msg, kind){ const el = $('connFeedback'); el.textContent = msg; el.className = 'feedback ' + (kind||''); }
+
+function setStatus(s){
+  const dot = $('statusDot'), txt = $('statusText');
+  dot.className = 'status-dot' + (s === 'connected' ? ' connected' : s === 'error' ? ' error' : s === 'connecting' ? ' connecting' : '');
+  txt.textContent = s === 'connected' ? (state.courseName || 'Connected')
+                  : s === 'error' ? 'Connection failed'
+                  : s === 'connecting' ? 'Connecting...' : 'Not connected';
+}
+
+async function connectCanvas(){
+  const url = $('canvasUrl').value.trim();
+  const token = $('accessToken').value.trim();
+  const courseId = $('courseId').value.trim();
+  if (!url || !token || !courseId){ feedback('All three fields are required.', 'error'); return; }
+
+  setStatus('connecting'); feedback('⟳ Connecting...', 'neutral');
+  $('connectBtn').disabled = true;
+
+  try {
+    const res = await fetch('/api/validate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({canvas_url:url, token, course_id:courseId}),
+    });
+    const data = await res.json();
+    if (!res.ok){ setStatus('error'); feedback('✗ ' + (data.error || 'Connection failed'), 'error'); return; }
+
+    state.connected = true;
+    state.creds = {url, token, courseId};
+    state.courseName = data.course_name || '';
+
+    // Everything starts INCLUDED. The test student starts out, since counting
+    // it is virtually never what you want.
+    lists.topics.items = (data.topics||[]).map(t => ({id:t.id, name:t.title, on:true}));
+    lists.students.items = (data.students||[]).map(s => ({
+      id:s.id, name:s.name, on: !s.is_test_student,
+      isTest: !!s.is_test_student, isStaff: !!s.is_staff, role: s.role,
+    }));
+    lists.topics.filter = lists.students.filter = '';
+    lists.topics.lastIdx = lists.students.lastIdx = null;
+    $('topicSearch').value = $('studentSearch').value = '';
+
+    setStatus('connected');
+    const nTest = lists.students.items.filter(s=>s.isTest).length;
+    feedback(`✓ ${esc(state.courseName)} — ${lists.topics.items.length} discussions, `
+           + `${lists.students.items.filter(s=>!s.isStaff && !s.isTest).length} students`
+           + (nTest ? ` (${nTest} test student auto-excluded)` : ''), 'success');
+
+    $('savePanel').classList.remove('hidden');
+    $('runBtn').disabled = false;
+    renderList('topics'); renderList('students');
+  } catch(e){
+    setStatus('error'); feedback('✗ Network error: ' + e.message, 'error');
+  } finally {
+    $('connectBtn').disabled = false;
+  }
+}
+
+// ===========================================================================
+// Include lists
+// ===========================================================================
+const visible = key => lists[key].items
+  .map((it,i) => ({...it, i}))
+  .filter(it => it.name.toLowerCase().includes(lists[key].filter));
+
+function setFilter(key,val){ lists[key].filter = val.toLowerCase(); lists[key].lastIdx = null; renderList(key); }
+
+function selectable(key,it){ return !(key === 'students' && it.isTest && $('dropTestStudent').checked); }
+
+function renderList(key){
+  const L = lists[key], el = $(L.listId), vis = visible(key);
+  if (!L.items.length){ el.innerHTML = `<div class="empty">Connect to load ${L.noun}</div>`; updateHint(key); return; }
+  if (!vis.length){ el.innerHTML = '<div class="empty">No results</div>'; updateHint(key); return; }
+
+  el.innerHTML = vis.map((it,vi) => {
+    const lock = !selectable(key,it);
+    const tag = it.isTest ? '<span class="tag test">test</span>'
+              : it.isStaff ? `<span class="tag staff">${esc(it.role)}</span>` : '';
+    return `<div class="item${it.on && !lock ? ' on' : ''}${lock ? ' locked' : ''}"
+        data-vi="${vi}"
+        ${lock ? '' : `onclick="clickItem(event,'${key}',${it.i},${vi})"
+        onmouseenter="preview('${key}',${vi})" onmouseleave="clearPreview('${key}')"`}
+        title="${esc(it.name)}">
+      <div class="box"></div><span class="item-text">${mark(it.name, L.filter)}</span>${tag}
+    </div>`;
+  }).join('');
+  updateHint(key);
+}
+
+function mark(name, f){
+  if (!f) return esc(name);
+  const i = name.toLowerCase().indexOf(f);
+  if (i < 0) return esc(name);
+  return esc(name.slice(0,i)) + '<mark>' + esc(name.slice(i,i+f.length)) + '</mark>' + esc(name.slice(i+f.length));
+}
+
+function clickItem(e, key, idx, vi){
+  const L = lists[key];
+  if (e.shiftKey && L.lastIdx !== null){
+    // Shift-click sets a contiguous run of the *visible* rows to match the
+    // row just clicked, which is what feels natural when filtering.
+    const vis = visible(key);
+    const a = Math.min(L.lastIdx, vi), b = Math.max(L.lastIdx, vi);
+    const target = !L.items[idx].on;
+    for (let k = a; k <= b; k++){
+      const it = vis[k];
+      if (it && selectable(key, it)) L.items[it.i].on = target;
+    }
+  } else {
+    L.items[idx].on = !L.items[idx].on;
+  }
+  L.lastIdx = vi;
+  renderList(key);
+}
+
+function preview(key, vi){
+  const L = lists[key];
+  if (L.lastIdx === null) return;
+  const el = $(L.listId), a = Math.min(L.lastIdx, vi), b = Math.max(L.lastIdx, vi);
+  el.querySelectorAll('.item').forEach(n => {
+    const i = +n.dataset.vi;
+    n.classList.toggle('preview', i >= a && i <= b && a !== b);
+  });
+}
+function clearPreview(key){ $(lists[key].listId).querySelectorAll('.item.preview').forEach(n => n.classList.remove('preview')); }
+
+function bulk(key, scope, on){
+  const L = lists[key];
+  const target = scope === 'visible' ? visible(key) : L.items.map((it,i)=>({...it,i}));
+  target.forEach(it => { if (selectable(key,it)) L.items[it.i].on = on; });
+  L.lastIdx = null;
+  renderList(key);
+}
+
+function updateHint(key){
+  const L = lists[key];
+  const pool = L.items.filter(it => selectable(key,it));
+  const on = pool.filter(it => it.on).length;
+  const vis = visible(key), visOn = vis.filter(it => it.on && selectable(key,it)).length;
+
+  $(L.badgeId).textContent = `${on}/${pool.length}`;
+  $(L.badgeId).classList.toggle('on', on > 0 && on < pool.length);
+
+  let html = `<b>${on}</b> of ${pool.length} ${L.noun} included`;
+  if (L.filter) html += ` &nbsp;·&nbsp; ${visOn}/${vis.length} shown`;
+  if (!on) html += ` &nbsp;·&nbsp; <span style="color:var(--red)">nothing to analyse</span>`;
+  html += `<br>Click to toggle · Shift-click for a range`;
+  $(L.hintId).innerHTML = html;
+
+  const ready = state.connected
+    && lists.topics.items.filter(i => i.on).length > 0
+    && lists.students.items.filter(i => i.on && selectable('students',i)).length > 0;
+  $('runBtn').disabled = !ready;
+}
+
+function onTestStudentToggle(){ renderList('students'); }
+
+// ===========================================================================
+// Participation weights   Y = b1*posts + b2*replies
+// ===========================================================================
+const fmtBeta = v => (Math.round(v * 100) / 100).toString();
+
+function renderWeights(){
+  const {posts, replies} = state.weights;
+  $('betaPosts').value = posts;         $('betaPostsNum').value = fmtBeta(posts);
+  $('betaReplies').value = replies;     $('betaRepliesNum').value = fmtBeta(replies);
+  const label = `Y = ${fmtBeta(posts)}·posts + ${fmtBeta(replies)}·replies`;
+  $('weightFormula').textContent = label;
+  $('weightBadge').textContent = `${fmtBeta(posts)} / ${fmtBeta(replies)}`;
+  $('weightBadge').classList.toggle('on', posts !== 1 || replies !== 1);
+  $('formulaChip').textContent = label;
+}
+
+function setWeight(which, raw){
+  let v = parseFloat(raw);
+  if (!Number.isFinite(v)) return;          // mid-edit empty box: wait for a number
+  state.weights[which] = Math.min(Math.max(v, 0), 5);
+  renderWeights();
+  scheduleRecompute();
+}
+
+function setWeights(p, r){
+  state.weights = {posts:p, replies:r};
+  renderWeights();
+  scheduleRecompute();
+}
+
+// ===========================================================================
+// Live re-score  (weights or tiers changed after a completed run)
+// ===========================================================================
+function scheduleRecompute(){
+  if (!state.jobId || !state.results) return;   // nothing to re-score yet
+  clearTimeout(state.recomputeTimer);
+  ['chartWrap1','chartWrap2'].forEach(id => $(id).classList.add('stale'));
+  $('formulaChip').classList.add('busy');
+  state.recomputeTimer = setTimeout(recomputeNow, 300);
+}
+
+async function recomputeNow(){
+  const seq = ++state.recomputeSeq;
+  try {
+    const res = await fetch(`/api/recompute/${state.jobId}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        grading_scheme: schemePayload(),
+        beta_posts: state.weights.posts,
+        beta_replies: state.weights.replies,
+      }),
+    });
+    const d = await res.json();
+    // A slower earlier request must never overwrite a newer result.
+    if (seq !== state.recomputeSeq) return;
+    if (!res.ok) throw new Error(d.error || 'Re-score failed');
+    renderResults(d);
+  } catch(e){
+    if (seq !== state.recomputeSeq) return;
+    ['chartWrap1','chartWrap2'].forEach(id => $(id).classList.remove('stale'));
+    $('formulaChip').classList.remove('busy');
+    feedback('✗ ' + e.message, 'error');
+  }
+}
+
+// ===========================================================================
+// Grading scheme
+// ===========================================================================
+function renderTiers(){
+  // Ranked tiers first (highest z on top), catch-all floor always last.
+  const ranked = tiers.filter(t => t.z !== null).sort((a,b) => b.z - a.z);
+  const floor  = tiers.find(t => t.z === null) || {z:null, grade:0};
+  tiers = [...ranked, floor];
+
+  $('tierRows').innerHTML = tiers.map((t,i) => `
+    <div class="tier">
+      <div class="tier-cond">
+        <span class="tier-dot" style="background:${TIER_COLORS[i % TIER_COLORS.length]}"></span>
+        ${t.z === null
+          ? '<span class="lbl">else (below all)</span>'
+          : `<span class="lbl">z ≥</span><input type="number" step="0.1" value="${t.z}"
+               aria-label="z-score threshold" onchange="editTier(${i},'z',this.value)">`}
+      </div>
+      <input type="number" step="1" value="${t.grade}" aria-label="grade percent"
+             onchange="editTier(${i},'grade',this.value)">
+      <button class="tier-x" aria-label="Remove tier" ${t.z === null ? 'disabled' : ''}
+              onclick="removeTier(${i})">✕</button>
+    </div>`).join('');
+
+  $('schemePreview').innerHTML = tiers.map((t,i) => `
+    <div><span style="color:${TIER_COLORS[i % TIER_COLORS.length]}">${t.z === null ? 'otherwise' : 'z ≥ ' + t.z}</span>
+    <span>${t.grade}%</span></div>`).join('');
+
+  // Duplicate thresholds silently shadow each other, so call it out.
+  const zs = tiers.filter(t => t.z !== null).map(t => t.z);
+  const dupes = zs.filter((z,i) => zs.indexOf(z) !== i);
+  const warn = $('schemeWarn');
+  if (dupes.length){
+    warn.textContent = `⚠ Duplicate threshold z ≥ ${dupes[0]} — only the first is ever reached.`;
+    warn.classList.remove('hidden');
+  } else warn.classList.add('hidden');
+}
+
+function editTier(i, field, val){
+  const n = parseFloat(val);
+  tiers[i][field] = Number.isFinite(n) ? n : 0;
+  renderTiers();
+  scheduleRecompute();
+}
+function addTier(){
+  const zs = tiers.filter(t => t.z !== null).map(t => t.z);
+  tiers.push({z: zs.length ? Math.min(...zs) - 1 : 0, grade: 0});
+  renderTiers();
+  scheduleRecompute();
+}
+function removeTier(i){ if (tiers[i].z !== null){ tiers.splice(i,1); renderTiers(); scheduleRecompute(); } }
+const schemePayload = () => tiers.map(t => ({z_min: t.z, grade: t.grade}));
+
+// ===========================================================================
+// Run
+// ===========================================================================
+async function runAnalysis(){
+  if (!state.connected) return;
+  showView('progress');
+  $('progressBar').style.width = '5%';
+  $('progressLabel').textContent = 'Starting analysis...';
+  $('progressStep').textContent = '';
+
+  try {
+    const res = await fetch('/api/run', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        canvas_url: state.creds.url,
+        token: state.creds.token,
+        course_id: state.creds.courseId,
+        included_topic_ids:   lists.topics.items.filter(t=>t.on).map(t=>t.id),
+        included_student_ids: lists.students.items.filter(s=>s.on).map(s=>s.id),
+        exclude_instructors: $('excludeInstructor').checked,
+        exclude_tas:         $('excludeTA').checked,
+        drop_test_student:   $('dropTestStudent').checked,
+        grading_scheme:      schemePayload(),
+        beta_posts:          state.weights.posts,
+        beta_replies:        state.weights.replies,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.job_id) throw new Error(data.error || 'Could not start the analysis.');
+    state.jobId = data.job_id;
+    pollStatus();
+  } catch(e){
+    // Keep the sidebar config intact — never dump the user back to a blank slate.
+    showView('welcome');
+    feedback('✗ ' + e.message, 'error');
+  }
+}
+
+function pollStatus(){
+  clearInterval(state.poll);
+  state.poll = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/status/${state.jobId}`);
+      const d = await res.json();
+
+      if (d.status === 'running'){
+        const pct = d.total > 0 ? Math.round((d.progress / d.total) * 88) + 6 : 20;
+        $('progressBar').style.width = pct + '%';
+        $('progressLabel').textContent = 'Analyzing discussions...';
+        $('progressStep').textContent = d.message || '';
+      } else if (d.status === 'done'){
+        clearInterval(state.poll);
+        $('progressBar').style.width = '100%';
+        setTimeout(() => renderResults(d, true), 280);
+      } else {
+        clearInterval(state.poll);
+        showView('welcome');
+        feedback('✗ Analysis error: ' + (d.message || 'unknown'), 'error');
+      }
+    } catch { clearInterval(state.poll); }
+  }, 500);
+}
+
+// ===========================================================================
+// Results
+// ===========================================================================
+function renderResults(d, fresh = false){
+  state.results = d;
+  const st = d.stats || {}, rows = d.summary || [];
+
+  // Keep the server's clamped weights authoritative.
+  if (Number.isFinite(st.beta_posts)){
+    state.weights = {posts: st.beta_posts, replies: st.beta_replies};
+    renderWeights();
+  }
+  ['chartWrap1','chartWrap2'].forEach(id => $(id).classList.remove('stale'));
+  $('formulaChip').classList.remove('busy');
+  const keepScroll = fresh ? 0 : document.querySelector('.main').scrollTop;
+
+  // Banners
+  const banners = [];
+  if ((st.test_students_removed || []).length){
+    banners.push(`<div class="banner"><b>✓</b><div>Canvas test student
+      (<b>${st.test_students_removed.map(esc).join(', ')}</b>) was excluded from the roster,
+      the mean, the median and the standard deviation.</div></div>`);
+  }
+  if (Math.abs((st.mean||0) - (st.median||0)) > (st.std||0) * 0.35 && st.std > 0){
+    banners.push(`<div class="banner warn"><b>!</b><div>Mean (<b>${(st.mean||0).toFixed(1)}</b>)
+      and median (<b>${(st.median||0).toFixed(1)}</b>) diverge noticeably, so the distribution is
+      skewed. Z-scores are computed from the mean, which a skew will pull toward the tail.</div></div>`);
+  }
+  if (st.weights_default === false){
+    banners.push(`<div class="banner warn"><b>Σ</b><div>Grades are based on
+      <b>${esc(st.formula || '')}</b>, not raw contribution counts. The Total column below stays
+      the raw count for auditing; the <b>Y</b> column is what the z-score is computed from.</div></div>`);
+  }
+  $('resultBanners').innerHTML = banners.join('');
+
+  // Grade distribution, driven by whatever tiers actually ran.
+  const dist = {};
+  rows.forEach(r => { dist[r.Grade] = (dist[r.Grade]||0) + 1; });
+  const grades = Object.keys(dist).map(Number).sort((a,b)=>b-a);
+  const colorFor = g => {
+    const i = tiers.findIndex(t => t.grade === g);
+    return TIER_COLORS[(i < 0 ? grades.indexOf(g) : i) % TIER_COLORS.length];
+  };
+
+  $('statCards').innerHTML = `
+    <div class="card">
+      <div class="card-label">Students</div>
+      <div class="card-value">${st.n ?? rows.length}</div>
+      <div class="card-sub">${st.zero_posts ?? 0} with zero posts</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Mean</div>
+      <div class="card-value" style="color:var(--green)">${(st.mean||0).toFixed(1)}</div>
+      <div class="card-sub">σ = ${(st.std||0).toFixed(1)}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Median</div>
+      <div class="card-value" style="color:var(--purple)">${(st.median||0).toFixed(1)}</div>
+      <div class="card-sub">${medianNote(st)}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Total Activity</div>
+      <div class="card-value">${(st.total_posts||0) + (st.total_replies||0)}</div>
+      <div class="card-sub">${st.total_posts||0} posts · ${st.total_replies||0} replies</div>
+    </div>
+    <div class="card split">
+      <div class="card-label">Grade Distribution</div>
+      ${grades.map(g => `<div class="dist-line">
+          <span class="dist-swatch" style="background:${colorFor(g)}"></span>
+          <span class="g">${g}%</span><span class="n" style="color:${colorFor(g)}">${dist[g]}</span>
+        </div>`).join('') || '<div class="card-sub">no students</div>'}
+    </div>`;
+
+  $('chartImg').src = d.chart_url;
+  $('compImg').src = d.composition_url;
+  $('chartNote1').innerHTML =
+    `Students binned by ${st.weights_default === false
+      ? 'weighted participation <b>Y</b>' : 'total posts + replies'}, with the fitted normal curve.
+     <span style="color:var(--green)">▮</span> mean &nbsp;
+     <span style="color:var(--purple)">▮</span> median &nbsp;
+     <span style="color:var(--yellow)">▮</span> ±1σ.`;
+  $('fileList').innerHTML = (d.files||[]).map(f => {
+    const ext = f.split('.').pop().toLowerCase();
+    const m = fileMeta(f);
+    return `<div class="file-row">
+      <span class="file-icon ${ext}">${m.label}</span>
+      <span class="file-name">${esc(f)}</span>
+      <span class="file-desc">${m.desc}</span>
+      <button class="btn tiny" onclick="downloadFile('${esc(f)}')">↓</button>
+    </div>`;
+  }).join('');
+
+  if (fresh) $('tableSearch').value = '';
+  renderTable();
+  showView('results');
+  if (keepScroll) document.querySelector('.main').scrollTop = keepScroll;
+}
+
+function medianNote(st){
+  const d = (st.mean||0) - (st.median||0);
+  if (!st.std) return 'midpoint of the class';
+  if (Math.abs(d) < 0.05) return 'matches the mean';
+  return d > 0 ? `${d.toFixed(1)} below the mean` : `${(-d).toFixed(1)} above the mean`;
+}
+
+function columns(){
+  const weighted = state.results?.stats?.weights_default === false;
+  return [
+    {k:'Student', t:'Student', num:false},
+    {k:'Posts',   t:'Posts',   num:true},
+    {k:'Replies', t:'Replies', num:true},
+    {k:'Total',   t:'Total',   num:true},
+    // Y only earns a column when it differs from Total.
+    ...(weighted ? [{k:'Weighted', t:'Y', num:true}] : []),
+    {k:'Z',       t:'Z-Score', num:true},
+    {k:'Grade',   t:'Grade',   num:true},
+  ];
+}
+
+function sortBy(k){
+  state.sort = (state.sort.key === k) ? {key:k, dir:-state.sort.dir} : {key:k, dir:1};
+  renderTable();
+}
+
+function renderTable(){
+  const rows = (state.results?.summary || []).slice();
+  const q = ($('tableSearch').value || '').toLowerCase();
+  const filtered = q ? rows.filter(r => r.Student.toLowerCase().includes(q)) : rows;
+
+  const {key, dir} = state.sort;
+  filtered.sort((a,b) => {
+    const x = a[key], y = b[key];
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir;
+  });
+
+  const cols = columns();
+  if (!cols.some(c => c.k === state.sort.key)) state.sort = {key:'Student', dir:1};
+  $('tblHead').innerHTML = cols.map(c =>
+    `<th onclick="sortBy('${c.k}')" ${c.num ? 'style="text-align:right"' : ''}>${c.t}
+      <span class="arrow">${state.sort.key === c.k ? (dir > 0 ? '▲' : '▼') : '↕'}</span></th>`).join('');
+
+  const colorFor = g => {
+    const i = tiers.findIndex(t => t.grade === g);
+    return TIER_COLORS[(i < 0 ? 0 : i) % TIER_COLORS.length];
+  };
+
+  const weighted = cols.some(c => c.k === 'Weighted');
+  $('tblBody').innerHTML = filtered.map(r => `
+    <tr>
+      <td>${esc(r.Student)}</td>
+      <td class="num">${r.Posts}</td>
+      <td class="num">${r.Replies}</td>
+      <td class="num">${r.Total}</td>
+      ${weighted ? `<td class="num" style="color:var(--blue)">${(+r.Weighted).toFixed(2)}</td>` : ''}
+      <td class="num" style="color:${r.Z >= 0 ? 'var(--green)' : 'var(--yellow)'}">${r.Z > 0 ? '+' : ''}${r.Z.toFixed(2)}</td>
+      <td class="num"><span class="pill" style="background:${colorFor(r.Grade)}22;color:${colorFor(r.Grade)}">${r.Grade}%</span></td>
+    </tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">No matching students</td></tr>`;
+}
+
+// ===========================================================================
+// Downloads / views
+// ===========================================================================
+function hit(href, name){
+  const a = document.createElement('a');
+  a.href = href; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function downloadFile(f){ if (state.jobId) hit(`/api/download/${state.jobId}/${encodeURIComponent(f)}`, f); }
+function downloadAll(){ if (state.jobId) hit(`/api/download_all/${state.jobId}`, 'canvas_discussion_results.zip'); }
+
+function showView(v){
+  ['welcome','progress','results'].forEach(n => $(n + 'View').classList.toggle('hidden', n !== v));
+}
+
+// ===========================================================================
+// Init
+// ===========================================================================
+renderSaved();
+renderWeights();
+renderTiers();
+updateHint('topics');
+updateHint('students');
+['canvasUrl','accessToken','courseId'].forEach(id =>
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') connectCanvas(); }));
+</script>
+</body>
+</html>
