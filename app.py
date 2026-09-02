@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import os
 import shutil
+import sys
 import tempfile
 import threading
 import traceback
@@ -26,8 +27,22 @@ import exports
 from analysis import StudentRow, Tier, Weights, parse_scheme, parse_weights, score, tally
 from canvas_client import CanvasClient, CanvasError
 
-BASE_DIR = Path(__file__).parent
+def _resource_dir() -> Path:
+    """Where bundled files live.
+
+    PyInstaller unpacks data files to a temp dir it advertises as sys._MEIPASS,
+    so the frozen desktop build cannot use __file__ to find static/.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+    return Path(__file__).parent
+
+
+BASE_DIR = _resource_dir()
 STATIC_DIR = BASE_DIR / "static"
+IS_FROZEN = getattr(sys, "frozen", False)
+# Set by the desktop launcher; signals the server to stop.
+SHUTDOWN = threading.Event()
 JOB_TTL = timedelta(hours=2)
 DEMO_MODE = os.environ.get("DEMO_MODE") == "1"
 
@@ -84,7 +99,16 @@ def index():
 
 @app.get("/healthz")
 def healthz():
-    return jsonify(ok=True, demo=DEMO_MODE)
+    return jsonify(ok=True, demo=DEMO_MODE, desktop=IS_FROZEN)
+
+
+@app.post("/api/quit")
+def quit_app():
+    """Let the page shut the desktop app down; a no-op when server-hosted."""
+    if not IS_FROZEN:
+        return jsonify(error="Not running as a desktop app."), 400
+    SHUTDOWN.set()
+    return jsonify(ok=True)
 
 
 # ---------------------------------------------------------------------------

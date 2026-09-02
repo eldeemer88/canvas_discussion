@@ -3,3 +3,7 @@ __pycache__/
 .env
 .venv/
 venv/
+
+# PyInstaller output
+build/
+dist/

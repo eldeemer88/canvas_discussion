@@ -1,0 +1,97 @@
+name: Build desktop apps
+
+# Tag a commit (git tag v1.0.0 && git push --tags) to cut a release.
+# "Run workflow" in the Actions tab builds without releasing, for testing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest      # Apple Silicon
+            label: macOS-AppleSilicon
+          - os: macos-13          # Intel Macs
+            label: macOS-Intel
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # A clean env matters: building from a kitchen-sink Python drags in
+      # PyQt/scipy and inflates the bundle roughly 8x.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build
+        run: pyinstaller build.spec --noconfirm --log-level WARN
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "dist/Canvas Discussion Grader.app" \
+            "CanvasDiscussionGrader-${{ matrix.label }}.zip"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path "dist/CanvasDiscussionGrader/*" -DestinationPath "CanvasDiscussionGrader-Windows.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CanvasDiscussionGrader-${{ matrix.label }}
+          path: CanvasDiscussionGrader-*.zip
+          retention-days: 14
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+          generate_release_notes: true
+          body: |
+            ## Download
+
+            | Your computer | File |
+            |---|---|
+            | Mac (M1/M2/M3/M4) | `CanvasDiscussionGrader-macOS-AppleSilicon.zip` |
+            | Mac (older, Intel) | `CanvasDiscussionGrader-macOS-Intel.zip` |
+            | Windows | `CanvasDiscussionGrader-Windows.zip` |
+
+            Not sure which Mac? Apple menu → About This Mac. "Apple M..." means Apple Silicon.
+
+            ## First launch
+
+            These apps are unsigned, so your computer will warn you once. This is
+            expected — the warning means "not paid for a certificate", not "unsafe".
+
+            **Mac:** unzip, drag to Applications, then **right-click the app → Open**
+            → Open. Only needed the first time; double-click works afterwards.
+
+            **Windows:** unzip, run `CanvasDiscussionGrader.exe`. At
+            "Windows protected your PC", click **More info → Run anyway**.
+
+            The app opens in your browser. Everything runs on your own machine —
+            your Canvas token never leaves it. Click **Quit** when finished.

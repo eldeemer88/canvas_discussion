@@ -5,7 +5,23 @@ from a normal-distribution model. Rebuild of the tool described in
 [`docs/Grading_Distribution_SOP_old.pdf`](docs/Grading_Distribution_SOP_old.pdf),
 with the changes listed below.
 
-## Quick start
+## For TAs: download the app
+
+Grab the latest build from the [Releases page](../../releases) — pick the Mac or
+Windows zip. Everything runs on your own machine: your Canvas token never leaves
+it, and no student data is sent anywhere.
+
+The apps are unsigned, so the first launch shows a warning (the warning means
+"no paid certificate", not "unsafe"):
+
+- **Mac** — unzip, drag to Applications, then **right-click → Open** → Open.
+  First time only.
+- **Windows** — unzip and run the `.exe`. At "Windows protected your PC",
+  click **More info → Run anyway**.
+
+The app opens in your browser. Click **Quit** in the top right when you're done.
+
+## For developers: run from source
 
 Run against synthetic data — no Canvas token needed:
 
@@ -20,6 +36,41 @@ For real use, drop `DEMO_MODE`:
 ```bash
 python3 app.py
 ```
+
+To run it the way the packaged app does (waitress, random port, opens a browser):
+
+```bash
+python3 desktop.py
+```
+
+## Building the desktop apps
+
+Builds are automated. Tag a commit and GitHub Actions produces all three
+binaries and attaches them to a Release:
+
+```bash
+git tag v1.0.0 && git push --tags
+```
+
+The Actions tab also has a **Run workflow** button to build without releasing.
+
+To build locally, use a **clean virtualenv** — building from a kitchen-sink
+Python (Anaconda especially) sweeps PyQt, scipy and friends into the bundle and
+inflates it about 8x, from ~86 MB to ~716 MB:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt pyinstaller && .venv/bin/pyinstaller build.spec --noconfirm
+```
+
+PyInstaller cannot cross-compile: a Windows `.exe` has to be built on Windows,
+which is the reason the release pipeline runs on three different runners.
+
+### Signing
+
+The binaries are unsigned, which is why users see a one-time warning. Removing
+it costs $99/year for an Apple Developer account (macOS notarization) and more
+for a Windows Authenticode certificate. Worth it only if non-technical staff
+find the warning off-putting.
 
 ## What changed from the old tool
 

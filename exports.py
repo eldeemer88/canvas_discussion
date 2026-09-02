@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import tempfile
 from collections import Counter
 from pathlib import Path
 from typing import Sequence
 
-# Container images often have no writable HOME, which makes matplotlib fail on
-# import while building its font cache. Point it at the temp dir first.
-os.environ.setdefault("MPLCONFIGDIR", tempfile.mkdtemp(prefix="mplcache_"))
+# Container images and frozen app bundles often have no writable HOME, which
+# makes matplotlib fail on import while building its font cache. Point it at a
+# STABLE temp path -- a fresh mkdtemp each launch would rebuild the cache every
+# single time, costing seconds of startup.
+_MPL_CACHE = pathlib.Path(tempfile.gettempdir()) / "canvas_grader_mplcache"
+_MPL_CACHE.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(_MPL_CACHE))
 
 import matplotlib
 
