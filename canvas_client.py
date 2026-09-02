@@ -43,6 +43,15 @@ class Person:
 
 
 @dataclass
+class CourseRef:
+    id: int
+    name: str
+    state: str = ""
+    term: str = ""
+    role: str = ""
+
+
+@dataclass
 class Topic:
     id: int
     title: str
@@ -68,6 +77,23 @@ class CanvasClient:
 
     # -- plumbing ----------------------------------------------------------
 
+    @staticmethod
+    def _detail(res: requests.Response) -> str:
+        """Canvas explains itself in the body; surface that instead of a bare code."""
+        try:
+            data = res.json()
+        except ValueError:
+            return ""
+        errors = data.get("errors") if isinstance(data, dict) else None
+        if isinstance(errors, list):
+            msgs = [e.get("message", "") for e in errors if isinstance(e, dict)]
+            return "; ".join(m for m in msgs if m)
+        if isinstance(errors, dict):
+            return "; ".join(str(v) for v in errors.values())
+        if isinstance(data, dict) and data.get("message"):
+            return str(data["message"])
+        return ""
+
     def _get(self, path: str, **params: Any) -> requests.Response:
         url = path if path.startswith("http") else f"{self.base_url}/api/v1{path}"
         try:
@@ -75,14 +101,28 @@ class CanvasClient:
         except requests.RequestException as exc:
             raise CanvasError(f"Could not reach Canvas: {exc}") from exc
 
+        detail = self._detail(res) if not res.ok else ""
+        suffix = f" Canvas said: {detail}" if detail else ""
+
         if res.status_code == 401:
-            raise CanvasError("Canvas rejected the access token (401). Generate a new one.")
+            raise CanvasError(
+                "Canvas rejected the access token (401). It may be expired, revoked, "
+                "or from a different Canvas site than the URL above." + suffix
+            )
         if res.status_code == 403:
-            raise CanvasError("Token lacks permission for this course (403).")
+            raise CanvasError(
+                "Your token is valid, but it cannot access this course (403). "
+                "Common causes: the course ID belongs to a different Canvas site, "
+                "the course is unpublished, or your enrolment in it is not active yet."
+                + suffix
+            )
         if res.status_code == 404:
-            raise CanvasError("Course or resource not found (404). Check the Course ID.")
+            raise CanvasError(
+                "No course with that ID on this Canvas site (404). The Course ID is the "
+                "number in the course URL, e.g. /courses/123456." + suffix
+            )
         if not res.ok:
-            raise CanvasError(f"Canvas returned {res.status_code} for {url}")
+            raise CanvasError(f"Canvas returned {res.status_code} for {url}.{suffix}")
         return res
 
     def _paginate(self, path: str, **params: Any) -> Iterator[dict]:
@@ -104,6 +144,44 @@ class CanvasClient:
 
     def get_course(self, course_id: str) -> dict:
         return self._get(f"/courses/{course_id}").json()
+
+    def whoami(self) -> str:
+        """Display name for the token's owner; empty if the token is invalid."""
+        try:
+            me = self._get("/users/self").json()
+            return me.get("name") or me.get("short_name") or ""
+        except CanvasError:
+            return ""
+
+    def list_courses(self) -> list[CourseRef]:
+        """Every course this token can actually reach.
+
+        Turns a dead-end 403 into a pick-list, which is usually enough for the
+        user to spot that they had the wrong ID or the wrong Canvas site.
+        """
+        found: dict[int, CourseRef] = {}
+        for state in ("active", "invited_or_pending", "completed"):
+            try:
+                rows = self._paginate(
+                    "/courses",
+                    enrollment_state=state,
+                    **{"include[]": ["term"], "state[]": ["unpublished", "available", "completed"]},
+                )
+                for c in rows:
+                    cid = c.get("id")
+                    if cid is None or cid in found:
+                        continue
+                    enrolments = c.get("enrollments") or []
+                    found[cid] = CourseRef(
+                        id=cid,
+                        name=c.get("name") or f"Course {cid}",
+                        state=c.get("workflow_state") or "",
+                        term=(c.get("term") or {}).get("name") or "",
+                        role=(enrolments[0].get("type", "") if enrolments else ""),
+                    )
+            except CanvasError:
+                continue  # one state failing should not hide the others
+        return sorted(found.values(), key=lambda c: (c.term, c.name))
 
     def get_people(self, course_id: str) -> list[Person]:
         """Every student/teacher/TA in the course, test student included and flagged."""

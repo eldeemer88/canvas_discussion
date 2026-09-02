@@ -132,7 +132,21 @@ def validate():
         people = client.get_people(course_id)
         topics = client.get_topics(course_id)
     except CanvasError as exc:
-        return jsonify(error=str(exc)), 400
+        # A bare 403/404 leaves the user guessing. If the token itself works,
+        # hand back the courses it CAN see so they can just pick the right one.
+        body: dict[str, Any] = {"error": str(exc)}
+        try:
+            who = client.whoami()
+            if who:
+                body["whoami"] = who
+                body["courses"] = [
+                    {"id": c.id, "name": c.name, "state": c.state,
+                     "term": c.term, "role": c.role}
+                    for c in client.list_courses()
+                ]
+        except Exception:  # noqa: BLE001 - diagnostics must never mask the real error
+            pass
+        return jsonify(body), 400
     except Exception as exc:  # noqa: BLE001 - surface anything unexpected to the UI
         return jsonify(error=f"Unexpected error: {exc}"), 500
 

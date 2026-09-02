@@ -95,6 +95,19 @@ input::placeholder{color:var(--text3)}
 .chip span:first-child{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip-x{color:var(--text3);padding:0 3px}
 .chip-x:hover{color:var(--red)}
+.diag{margin-top:10px;border:1px solid rgba(230,192,123,.35);background:rgba(230,192,123,.06);
+  border-radius:6px;padding:10px 11px}
+.diag-head{font-family:var(--mono);font-size:10px;color:var(--yellow);line-height:1.6;
+  margin-bottom:8px}
+.diag-list{max-height:190px;overflow-y:auto}
+.diag-course{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:4px;
+  cursor:pointer;font-family:var(--mono);font-size:10.5px;border:1px solid transparent}
+.diag-course:hover{background:var(--panel2);border-color:var(--line2)}
+.diag-course .cid{color:var(--blue);flex:none}
+.diag-course .cname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
+.diag-course .cstate{font-size:8.5px;padding:1px 5px;border-radius:3px;flex:none;
+  background:var(--panel2);color:var(--text3)}
+.diag-course .cstate.unpublished{background:rgba(230,192,123,.15);color:var(--yellow)}
 .muted{font-family:var(--mono);font-size:10.5px;color:var(--text3);line-height:1.6}
 
 /* ---------- toggles ---------- */
@@ -302,6 +315,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
         <button class="btn primary" id="connectBtn" onclick="connectCanvas()">Connect</button>
       </div>
       <div class="feedback" id="connFeedback"></div>
+      <div id="connDiag"></div>
 
       <div id="savePanel" class="hidden">
         <label class="fld" for="courseAlias">Save this course?</label>
@@ -629,7 +643,13 @@ async function connectCanvas(){
       body: JSON.stringify({canvas_url:url, token, course_id:courseId}),
     });
     const data = await res.json();
-    if (!res.ok){ setStatus('error'); feedback('✗ ' + (data.error || 'Connection failed'), 'error'); return; }
+    if (!res.ok){
+      setStatus('error');
+      feedback('✗ ' + (data.error || 'Connection failed'), 'error');
+      renderDiagnostics(data);
+      return;
+    }
+    $('connDiag').innerHTML = '';
 
     state.connected = true;
     state.creds = {url, token, courseId};
@@ -660,6 +680,41 @@ async function connectCanvas(){
   } finally {
     $('connectBtn').disabled = false;
   }
+}
+
+function renderDiagnostics(data){
+  const el = $('connDiag');
+  if (!data.whoami){ el.innerHTML = ''; return; }
+
+  const courses = data.courses || [];
+  if (!courses.length){
+    el.innerHTML = `<div class="diag"><div class="diag-head">
+      Your token works — signed in as <b>${esc(data.whoami)}</b>. But it cannot see
+      <b>any</b> courses on this Canvas site, which usually means the token was made
+      on a different Canvas site than the URL above.</div></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="diag">
+    <div class="diag-head">Your token works — signed in as <b>${esc(data.whoami)}</b>.
+      Here are the ${courses.length} course${courses.length === 1 ? '' : 's'} it can reach.
+      Click one to use its ID.</div>
+    <div class="diag-list">
+      ${courses.map(c => `
+        <div class="diag-course" onclick="useCourse('${esc(String(c.id))}')"
+             title="${esc(c.term || '')} ${esc(c.role || '')}">
+          <span class="cid">${esc(String(c.id))}</span>
+          <span class="cname">${esc(c.name)}</span>
+          ${c.state && c.state !== 'available'
+            ? `<span class="cstate ${esc(c.state)}">${esc(c.state)}</span>` : ''}
+        </div>`).join('')}
+    </div></div>`;
+}
+
+function useCourse(id){
+  $('courseId').value = id;
+  $('connDiag').innerHTML = '';
+  connectCanvas();
 }
 
 // ===========================================================================
