@@ -18,7 +18,9 @@ jobs:
         include:
           - os: macos-latest      # Apple Silicon
             label: macOS-AppleSilicon
-          - os: macos-13          # Intel Macs
+          # macos-13 was retired Dec 2025; macos-15-intel is the x86_64 label.
+          # GitHub drops Intel macOS entirely in Fall 2027.
+          - os: macos-15-intel
             label: macOS-Intel
           - os: windows-latest
             label: Windows
@@ -59,7 +61,9 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    # always() so one unavailable runner can't block the whole release; we
+    # publish whatever built rather than nothing.
+    if: always() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
