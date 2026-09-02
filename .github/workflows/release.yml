@@ -91,11 +91,22 @@ jobs:
             These apps are unsigned, so your computer will warn you once. This is
             expected — the warning means "not paid for a certificate", not "unsafe".
 
-            **Mac:** unzip, drag to Applications, then **right-click the app → Open**
-            → Open. Only needed the first time; double-click works afterwards.
+            **macOS** — unzip and drag to Applications. macOS will refuse to open it
+            ("cannot be verified"). Right-click -> Open does **not** work on macOS 15
+            Sequoia or newer; Apple removed that bypass. Use either:
 
-            **Windows:** unzip, run `CanvasDiscussionGrader.exe`. At
-            "Windows protected your PC", click **More info → Run anyway**.
+            - **No Terminal:** try to open it once, then go to
+              **System Settings -> Privacy & Security**, scroll to **Security**, and
+              click **Open Anyway** next to the blocked-app message. Authenticate.
+            - **Terminal (fastest, one line):**
+              ```
+              xattr -dr com.apple.quarantine "/Applications/Canvas Discussion Grader.app"
+              ```
+
+            Either way it is a one-time step. It opens normally forever after.
+
+            **Windows** — unzip, run `CanvasDiscussionGrader.exe`. At
+            "Windows protected your PC", click **More info -> Run anyway**.
 
             The app opens in your browser. Everything runs on your own machine —
             your Canvas token never leaves it. Click **Quit** when finished.

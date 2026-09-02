@@ -14,10 +14,21 @@ it, and no student data is sent anywhere.
 The apps are unsigned, so the first launch shows a warning (the warning means
 "no paid certificate", not "unsafe"):
 
-- **Mac** — unzip, drag to Applications, then **right-click → Open** → Open.
-  First time only.
-- **Windows** — unzip and run the `.exe`. At "Windows protected your PC",
-  click **More info → Run anyway**.
+**macOS.** Unzip, drag to Applications. It will refuse to open the first time.
+Right-click → Open does *not* work on macOS 15 Sequoia or newer — Apple removed
+that bypass. Instead either open **System Settings → Privacy & Security**, scroll
+to **Security**, and click **Open Anyway**; or run this one line:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Canvas Discussion Grader.app"
+```
+
+The block comes from the quarantine flag your browser attaches to downloads,
+not from anything wrong with the app — its signature is valid, just ad-hoc
+rather than a paid Developer ID. One-time step either way.
+
+**Windows.** Unzip and run the `.exe`. At "Windows protected your PC", click
+**More info → Run anyway**.
 
 The app opens in your browser. Click **Quit** in the top right when you're done.
 
