@@ -1,15 +1,27 @@
 # Canvas Discussion Grader
 
 Analyzes participation in Canvas discussions and produces a grade distribution
-from a normal-distribution model. Rebuild of the tool described in
-[`docs/Grading_Distribution_SOP_old.pdf`](docs/Grading_Distribution_SOP_old.pdf),
-with the changes listed below.
+from a normal-distribution model. Runs as a downloadable desktop app — no server,
+no hosting, and Canvas tokens never leave the user's machine.
+
+**[→ Download the app](../../releases/latest)** &nbsp;·&nbsp;
+**[→ Full SOP (PDF)](docs/Canvas_Discussion_Grader_SOP.pdf)**
+
+The SOP is the document to hand to teaching staff: installation, token
+generation, configuration, how to read the output, and troubleshooting. This
+README covers the code.
+
+> Canvas site is **https://canvas.harvard.edu**. The older
+> [`docs/Grading_Distribution_SOP_old.pdf`](docs/Grading_Distribution_SOP_old.pdf)
+> is the inherited Pitt document this tool was rebuilt from — kept for reference
+> only. Its URLs, institution and sample data are not accurate.
 
 ## For TAs: download the app
 
 Grab the latest build from the [Releases page](../../releases) — pick the Mac or
 Windows zip. Everything runs on your own machine: your Canvas token never leaves
-it, and no student data is sent anywhere.
+it, and no student data is sent anywhere. Full instructions are in the
+[SOP](docs/Canvas_Discussion_Grader_SOP.pdf).
 
 The apps are unsigned, so the first launch shows a warning (the warning means
 "no paid certificate", not "unsafe"):
@@ -75,6 +87,19 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt pyinstaller &
 
 PyInstaller cannot cross-compile: a Windows `.exe` has to be built on Windows,
 which is the reason the release pipeline runs on three different runners.
+
+## Regenerating the SOP
+
+The SOP's figures are real screenshots, captured by driving the app in demo mode
+rather than pasted in by hand, so they cannot drift from the UI:
+
+```bash
+pip install reportlab playwright && python3 -m playwright install chromium
+```
+
+`tools/capture_figures.py` starts the app (plus a mock Canvas, for the failure
+screenshots), captures each panel, and `tools/make_sop.py` builds the PDF into
+`docs/`. Re-run both after any UI change that the SOP depicts.
 
 ### Signing
 
